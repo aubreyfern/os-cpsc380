@@ -1,0 +1,622 @@
+#include <pthread.h>
+#include <string>
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <sstream>
+#include <pthread.h>
+
+
+
+
+
+using namespace std;
+
+vector<vector<int>> board;
+vector<int> v; //returns duplicate values, column #, and missing values in the vertical scan
+vector<int> h; //returns duplicate values, row #, and missing values in the horizontal scan
+vector<int> s; //returns duplicate values, square #, and missing values in the square scan
+
+void fillBoard(string);
+void printBoard();
+void *vScan(void *);
+void *hScan(void *);
+void *sScan(void *);
+void checkResults();
+
+
+void row_verify( char x[9][9]) { // x is the 2D array storing the sudoku
+	char temp;
+	int count;
+	for ( int i = 0 ; i < 9 ; i++) {
+		for ( int j = 0 ; j < 9 ; j++) {
+			count = 0;
+		temp = x[i][j];
+		if ( temp != '.') {
+		for ( int k = 0 ; k < 9 ; k++ ) {
+			if (x[i][k] == temp)
+				count++; } }
+       if (count >= 2) {
+		   cout << "Row " << i << " is invalid." << endl;
+		   i++; }
+	} } }
+
+int main(int argc, char* argv[]) {
+  if(argc < 2) {
+    cout << "No file provided. Exiting." << endl;
+    exit(0);
+  } else {
+    string fileName = argv[1];
+    fillBoard(fileName);
+    //printBoard();
+    pthread_t myThreads[3];
+    for(int i = 0; i < 3; ++i) {
+      switch(i) {
+        case 0:
+          pthread_create(&myThreads[0], NULL, vScan, NULL);
+          break;
+        case 1:
+          pthread_create(&myThreads[1], NULL, hScan, NULL);
+          break;
+        case 2:
+          pthread_create(&myThreads[2], NULL, sScan, NULL);
+          break;
+      }
+    }
+
+    for(int i = 0; i < 3; ++i) {
+      pthread_join(myThreads[i], NULL);
+    }
+
+    checkResults();
+
+
+  }
+  return 0;
+}
+
+void fillBoard(string fileName) {
+  if(!ifstream(fileName)) {
+    cout << "File not found. Exiting program." << endl;
+    exit(0);
+  }
+
+  ifstream readFile(fileName);
+  string line;
+  int r = 0;
+
+  while(r < 9 && getline(readFile, line)) {
+    vector<int> row;
+    stringstream iss(line);
+    int c = 0;
+    string val;
+
+    while(c < 9 && getline(iss, val, ',')) {
+      row.push_back(stoi(val));
+    }
+    board.push_back(row);
+  }
+}
+
+void printBoard() {
+  for(int i = 0; i < board.size(); ++i) {
+    for(int j = 0; j < board[0].size(); ++j) {
+      cout << board[i][j];
+    }
+    cout << "\r\n";
+  }
+}
+
+void *vScan(void *) {
+  vector<int> dups;
+  vector<int> col;
+  vector<int> missing;
+  for(int i = 0; i < board.size(); ++i) {
+    vector<int> seen(9);
+    for(int j = 0; j < board[0].size(); ++j) {
+      if(seen[board[j][i]-1] != 0) {
+        //problem occurrs here
+        //cout << "Duplicate vertical number " << board[j][i] << " found in column " << i+1 << endl;
+        dups.push_back(board[j][i]);
+        col.push_back(i+1);
+      } else {
+        seen[board[j][i]-1] = board[j][i];
+      }
+
+    }
+    for(int k = 0; k < 9; ++k) {
+      if(seen[k] != k+1) {
+        //cout << "Missing number " << k+1 << " in column " << i+1 << endl;
+        missing.push_back(k+1);
+      }
+    }
+  }
+   for(int i = 0; i < dups.size(); ++i) {
+     v.push_back(dups[i]); //order of the returning array will be duplicated num followed by missing num
+     v.push_back(col[i]);
+     v.push_back(missing[i]);
+   }
+}
+
+void *hScan(void *) {
+  vector<int> dups;
+  vector<int> row;
+  vector<int> missing;
+  for(int i = 0; i < board.size(); ++i) {
+    vector<int> seen(9);
+    for(int j = 0; j < board[0].size(); ++j) {
+      if(seen[board[i][j]-1] != 0) {
+        //problem occurrs here
+        //cout << "Duplicate horizontal number " << board[i][j] << " found in row " << i+1 << endl;
+        dups.push_back(board[i][j]);
+        row.push_back(i+1);
+      } else {
+        seen[board[i][j]-1] = board[i][j];
+      }
+
+    }
+    for(int k = 0; k < 9; ++k) {
+      if(seen[k] != k+1) {
+        //cout << "Missing number " << k+1 << " in row " << i+1 << endl;
+        missing.push_back(k+1);
+      }
+    }
+  }
+
+  for(int i = 0; i < dups.size(); ++i) {
+    h.push_back(dups[i]);
+    h.push_back(row[i]);
+    h.push_back(missing[i]);
+  }
+}
+
+void *sScan(void *) {
+
+    vector<int> dups;
+    vector<int> square;
+    vector<int> missing;
+
+    for(int a = 0; a < 3; ++a) {
+      for(int b = 0; b < 3; ++b) {
+        vector<int> seen(9);
+        for(int i = b*3; i < (b*3)+3; ++i){
+          for(int j = a*3; j < (a*3)+3; ++j) {
+            if(seen[board[i][j]-1] != 0) {
+              //cout << "Duplicate number " << board[i][j] << " in square " << a+(b*3)+1 << endl;
+              dups.push_back(board[i][j]);
+              square.push_back(a+(b*3)+1);
+            } else {
+              seen[board[i][j]-1] = board[i][j];
+            }
+          }
+        }
+        for(int k = 0; k < 9; ++k) {
+          if(seen[k] != k+1) {
+            //cout << "Missing number " << k+1 << " in square " << a+b+1 << endl;
+            missing.push_back(k+1);
+          }
+        }
+      }
+    }
+
+    for(int i = 0; i < dups.size(); ++i) {
+      s.push_back(dups[i]);
+      s.push_back(square[i]);
+      s.push_back(missing[i]);
+    }
+}
+
+void checkResults() {
+  if(v.size() == 0 && h.size() == 0 && s.size() == 0) {
+    cout << "Valid sudoku board. Exiting." << endl;
+  } else {
+    for(int i = 0; i < v.size(); i += 3) {
+      cout << "Duplicate value of " << v[i] << " found at " << h[i+1] << "," << v[i+1] << " in square " << s[i+1] << ". This value should be " << v[i+2] << endl;
+    }
+  }
+}
+
+
+
+
+
+
+
+
+void Matrix::fill(char* fileName) {
+  FileIO* file = new FileIO(fileName);
+  char delimiter = ',';
+  string vals;
+
+  int row = 0;
+  file->open();
+  while(file->good()) {
+    string line = file->readLine();
+    int col = 0;
+    for(unsigned int i = 0; i < line.size(); ++i) {
+      if(line[i] == delimiter && line[i+1] == delimiter) {
+        this->data[row][col] = ' ';
+        col++;
+      }
+      else if(line[i] != delimiter) {
+        this->data[row][col] = line[i];
+        col++;
+      }
+    }
+
+    row++;
+  }
+  // file->close();
+
+}
+
+
+
+/*
+ * Author: Majid Aziz
+ * Email: aziz112@mail.chapman.edu
+ * DATE: 3/7/18
+ * Program: Sudoku validation using 9 threads other than main.
+ * compile: g++ -pthread sudoku.cpp | running requires text file via terminal input
+ * */
+#include <iostream>
+#include <fstream>
+#include <pthread.h>
+#include <cstdlib>
+#include <string>
+using namespace std;
+
+#define WIDTH 9
+#define HEIGHT 9
+
+struct thread_data
+{
+    int row;
+    int col;
+    bool row_on;
+    bool col_on;
+};
+
+/* 9x9 grid of sudoku input */
+char grid[HEIGHT][WIDTH];
+/* just a global counter */
+int glb_cnt = 0;
+
+/* Creates sudoku grid (2d array) */
+void create_grid(char* argv);
+/* Error Checks if duplicate value in either same row or column, depending on argument values */
+void *same_line_validation(void *arguments);
+/* Error Checks sub grid to contain one of each value ranging from [1,9]  */
+void *sub_grid_validation(void *arguments);
+/* prints something..idk */
+void print_grid();
+
+int main(int argc, char* argv[])
+{
+    create_grid(argv[1]);
+    print_grid();
+    cout << "Errors will be listed below..if any" << endl << endl;
+    pthread_t threads[HEIGHT];
+    struct thread_data args[HEIGHT];
+    int rc;
+    int i;
+    // ROW CHECKING
+    for(i=0; i<HEIGHT; ++i)
+    {
+        args[i].row = i;
+        args[i].col = 0;
+	args[i].row_on = true;
+	args[i].col_on = false;
+        //cout << "row before _create: " << args[i].row << endl;
+        rc = pthread_create(&threads[i], NULL, same_line_validation, (void *) &args);
+        //cout << "row after _create: " << args[i].row << endl;
+        if(rc)
+        {
+            cout << "Uh oh " << rc << endl;
+            exit(-1);
+        }
+    }
+    pthread_join(threads[8], NULL);
+    // COLUMN CHECKING
+    glb_cnt = 0;
+    for(i=0; i<HEIGHT; ++i)
+    {
+        args[i].row = 0;
+        args[i].col = i;
+	args[i].row_on = false;
+	args[i].col_on = true;
+        rc = pthread_create(&threads[0], NULL, same_line_validation, (void *) &args);
+        if(rc)
+        {
+            cout << "RIP " << rc << endl;
+            exit(-1);
+        }
+    }
+    pthread_join(threads[8], NULL);
+    int cnt0 = 0;
+    int cnt1 = 0;
+    for(i=0; i<HEIGHT; ++i)
+    {
+	args[i].row = (3*cnt0);
+        args[i].col = (3*cnt1);
+        rc = pthread_create(&threads[i], NULL, sub_grid_validation, (void *) &args[i]);
+	if(rc)
+	{
+	    cout << "Your machine appears to be alergic to multi threads :( " << rc << endl;
+	    exit(-1);
+	}
+	cnt1++;
+	if(args[i].col == 6)
+	{
+	    cnt1 = 0;
+	    cnt0++;
+	}
+    }
+    pthread_join(threads[8], NULL);
+    return 0;
+}
+
+void create_grid(char *argv)
+{
+    ifstream myfile;
+    myfile.open(argv);
+    string line;
+    int row_c = 0;
+    int col_c = 0;
+    if(myfile.is_open())
+    {
+        while(getline(myfile,line))
+        {
+            for(int i=0; i<line.size(); ++i)
+            {
+                if(line[i] != ',')
+                {
+                    grid[row_c][col_c] = line[i];
+                    col_c++;
+                }
+            }
+            row_c++;
+            col_c = 0;
+        }
+    }
+}
+
+void *same_line_validation(void *arguments)
+{
+    struct thread_data *args;
+    args = (struct thread_data *) arguments;
+    if(args->row_on)
+    {
+        args->row = glb_cnt;
+        args->col = 0;
+    }
+    else if(args->col_on)
+    {
+        args->col = glb_cnt;
+        args->row = 0;
+    }
+    glb_cnt++;
+    char c;
+    int one=0,
+        two=0,
+        three=0,
+        four=0,
+        five=0,
+        six=0,
+        seven=0,
+        eight=0,
+        nine=0;
+    for(int i=0; i<HEIGHT;++i)
+    {
+        c = grid[args->row][args->col];
+        if(args->row_on)
+        {
+            args->col++;
+        }
+        else if(args->col_on)
+        {
+            args->row++;
+        }
+        if(c == '1')
+            one++;
+        else if(c == '2')
+            two++;
+        else if(c == '3')
+            three++;
+        else if(c == '4')
+            four++;
+        else if(c == '5')
+            five++;
+        else if(c == '6')
+            six++;
+        else if(c == '7')
+            seven++;
+        else if(c == '8')
+            eight++;
+        else if(c == '9')
+            nine++;
+    }
+    int error_counter = 0;
+    if(one>=2)
+    {
+        cout << one << " one's, ";
+        error_counter++;
+    }
+    if(two>=2)
+    {
+        cout << two << " two's, ";
+        error_counter++;
+    }
+    if(three>=2)
+    {
+        cout << three << " three's, ";
+        error_counter++;
+    }
+    if(four>=2)
+    {
+        cout << four << " four's, ";
+        error_counter++;
+    }
+    if(five>=2)
+    {
+        cout << five << " five's, ";
+        error_counter++;
+    }
+    if(six>=2)
+    {
+        cout << six << " six's, ";
+        error_counter++;
+    }
+    if(seven>=2)
+    {
+        cout << seven << " seven's, ";
+        error_counter++;
+    }
+    if(eight>=2)
+    {
+        cout << eight << " eight's, ";
+        error_counter++;
+    }
+    if(nine>=2)
+    {
+        cout << nine << " nine's, ";
+        error_counter++;
+    }
+    if(error_counter > 0)
+    {
+
+        if(args->row_on)
+        {
+            cout << "on row " << args->row + 1 << endl;
+        }
+        else if(args->col_on)
+        {
+            cout << "on column " << args->col + 1 << endl;
+        }
+    }
+    if(glb_cnt == 9 && error_counter > 0)
+    {
+        cout << endl;
+    }
+}
+
+void *sub_grid_validation(void *arguments)
+{
+    struct thread_data *args;
+    args = (struct thread_data *) arguments;
+    // I don't know why args-row is set to 9 but this fixes that, same with ->col set to 8..
+    if(args->row == 9)
+    {
+        args->row = 0;
+    }
+    if(args->col == 8)
+    {
+        args->col = 0;
+    }
+    int error_counter = 0;
+    int one=0,
+        two=0,
+        three=0,
+        four=0,
+        five=0,
+        six=0,
+        seven=0,
+        eight=0,
+        nine=0;
+    char c;
+    int counter=0;
+    for(int i=0; i<HEIGHT;++i)
+    {
+        c = grid[args->row][args->col];
+        if(counter == 2)
+        {
+            args->col -= 3;
+            args->row++;
+            counter = -1;
+        }
+        args->col++;
+        counter++;
+        if(c == '1')
+            one++;
+        else if(c == '2')
+            two++;
+        else if(c == '3')
+            three++;
+        else if(c == '4')
+            four++;
+        else if(c == '5')
+            five++;
+        else if(c == '6')
+            six++;
+        else if(c == '7')
+            seven++;
+        else if(c == '8')
+            eight++;
+        else if(c == '9')
+            nine++;
+    }
+    if(one>1)
+    {
+        error_counter++;
+        cout << one << " one's, ";
+    }
+    if(two>1)
+    {
+        error_counter++;
+        cout << two << " two's, ";
+    }
+    if(three>1)
+    {
+        error_counter++;
+        cout << three << " three's, ";
+    }
+    if(four>1)
+    {
+		error_counter++;
+        cout << four << " four's, ";
+    }
+    if(five>1)
+    {
+        error_counter++;
+        cout << five << " five's, ";
+    }
+    if(six>1)
+    {
+        error_counter++;
+        cout << six << " six's, ";
+    }
+    if(seven>1)
+    {
+        error_counter++;
+        cout << seven << " seven's, ";
+    }
+    if(eight>1)
+    {
+        error_counter++;
+        cout << eight << " eight's, ";
+    }
+    if(nine>1)
+    {
+		error_counter++;
+        cout << nine << " nine's, ";
+    }
+    if(error_counter > 0)
+    {
+       cout << "in sub grid rows [" << args->row - 2 << "," << args->row << "] "
+            << "columns [" << args->col + 1 << "," << args->col + 3 << "]" << endl;
+    }
+}
+
+void print_grid()
+{
+    cout << "Testing Grid Below" << endl << endl;
+    for(int i=0; i<HEIGHT; ++i)
+    {
+        for(int j=0; j<HEIGHT; ++j)
+        {
+           cout << grid[i][j] << ",";
+        }
+        cout << endl;
+    }
+    cout << endl;
+}
